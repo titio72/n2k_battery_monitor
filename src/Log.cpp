@@ -45,9 +45,9 @@ void _trace(const char* text) {
 
     #else
 	printf("%s", text);
-	FILE* f = fopen("/var/log/nmea.log", "a+");
+	FILE* f = fopen("/var/log/ve.direct.log", "a+");
 	if (f==NULL) {
-		f = fopen("./nmea.log", "a+");
+		f = fopen("./ve.direct.log", "a+");
 	}
 	if (f) {
 		fprintf(f, "%s %s", _gettime(), text);

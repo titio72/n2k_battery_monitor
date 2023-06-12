@@ -51,9 +51,35 @@ int read_vedirect(double& v, double precision, const char* tag, const char* line
   if (token && strcmp(tag, token)==0) {
     token = strtok(NULL, "\t");
     if (token) {
-      v = atof(token) * precision;
-      last_time = _millis();
-      return -1;
+      if (strcmp("---", token)==0) {
+        return 0;
+      } else {
+        v = atof(token) * precision;
+        last_time = _millis();
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+int read_vedirect_int(int& v, const char* tag, const char* line, unsigned long& last_time) {
+  char str[80];
+  strcpy(str, line);
+  char *token;
+  token = strtok(str, "\t");
+  if (token && strcmp(tag, token)==0) {
+    //printf("'%s' '%s'\n", line, tag);
+    token = strtok(NULL, "\t");
+    if (token) {
+      if (strcmp("---", token)==0) {
+        return 0;
+      } else {
+        v = atoi(token);
+        //printf("OK '%s' (%d)\n", tag, v);
+        last_time = _millis();
+        return -1;
+      }
     }
   }
   return 0;

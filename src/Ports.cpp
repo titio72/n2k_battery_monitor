@@ -16,6 +16,7 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include "Utils.h"
 
 #ifdef ESP32_ARCH
 #include <Arduino.h>
@@ -28,10 +29,9 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "Ports.h"
 #include "Log.h"
-#include "Utils.h"
 
 #ifdef ESP32_ARCH
-Port::Port(unsigned int _rx, unsigned int _tx, unsigned int _speed)
+VEDirectPort::VEDirectPort(unsigned int _rx, unsigned int _tx, unsigned int _speed)
 {
 	fun = NULL;
 	tty_fd = 0;
@@ -48,7 +48,7 @@ Port::Port(unsigned int _rx, unsigned int _tx, unsigned int _speed)
 	port = strdup("dummy");
 }
 #else
-Port::Port(const char *port_name, unsigned int _speed)
+VEDirectPort::VEDirectPort(const char *port_name, unsigned int _speed)
 {
 	port = strdup(port_name);
 	fun = NULL;
@@ -64,39 +64,95 @@ Port::Port(const char *port_name, unsigned int _speed)
 }
 #endif
 
-Port::~Port()
+static const char *end_string = "Checksum\t";
+
+VEDirectPort::~VEDirectPort()
 {
 	delete port;
 }
 
-void Port::set_handler(int (*fun)(const char *))
+void VEDirectPort::set_handler(int (*fun)(const char *))
 {
-	Port::fun = fun;
+	VEDirectPort::fun = fun;
 }
 
-int Port::process_char(unsigned char c)
+static int check_end_frame(char *buffer, int pos)
 {
-	int res = 0;
-	if (c != 10 && c != 13)
+	int l = strlen("Checksum\tx");
+	if (pos < l)
+		return 0;
+	else
 	{
-		read_buffer[pos] = c;
-		pos++;
-		pos %= PORT_BUFFER_SIZE; // avoid buffer overrun
-	}
-	else if (pos != 0)
-	{
-		if (fun)
+		char *xx = buffer + sizeof(char) * (pos - l);
+		for (int x = 0; x < strlen(end_string); x++)
 		{
-			(*fun)(read_buffer);
+			if (xx[x] != end_string[x])
+				return 0;
 		}
-		// if (trace) {
-		//	Log::trace("Read {%s}\n", read_buffer);
-		// }
-		pos = 0;
-		res = 1;
+		// printf("Matched '%s'\n", xx);
+		return -1;
 	}
-	read_buffer[pos] = 0;
-	return res;
+}
+
+static int check_start(char *buffer, int pos)
+{
+	if (pos < 2)
+		return 0;
+	else
+		return (buffer[pos - 1] == 10 && buffer[pos - 2] == 13);
+}
+
+void VEDirectPort::reset()
+{
+	read_buffer[0] = 0;
+	pos = 0;
+	last_start_line = 0;
+	checksum = 0;
+	phase = PHASE_IDLE;
+}
+
+int VEDirectPort::process_char(unsigned char c)
+{
+	read_buffer[pos] = c;
+	checksum = (checksum + c) & 0xFF;
+	read_buffer[pos + 1] = 0;
+	pos++;
+	if (pos == PORT_BUFFER_SIZE)
+	{
+		// avoid overruning buffer
+		Log::trace("Buffer full\n");
+		reset();
+	}
+	if (phase == PHASE_IDLE && check_start(read_buffer, pos))
+	{
+		// printf("Started frame\n");
+		phase = PHASE_FRAME;
+		last_start_line = pos;
+	}
+	else if (phase == PHASE_FRAME && check_start(read_buffer, pos))
+	{
+		static char temp[128];
+		memcpy(temp, read_buffer + last_start_line * sizeof(char), (pos - last_start_line) * sizeof(char));
+		temp[pos - last_start_line - 2] = 0;
+		last_start_line = pos;
+		(*fun)(temp);
+	}
+	else if (phase == PHASE_FRAME && check_end_frame(read_buffer, pos))
+	{
+		// frame complete
+		if (checksum == 0)
+		{
+			(*fun)("Checksum\t");
+		}
+		else
+		{
+			Log::trace("Invalid frame {%s}\n", read_buffer);
+		}
+		// printf("Read frame '%s' %d\n", read_buffer, checksum);
+		reset();
+		return 1;
+	}
+	return 0;
 }
 
 #ifndef ESP32_ARCH
@@ -115,7 +171,7 @@ int fd_set_blocking(int fd, int blocking)
 }
 #endif
 
-void Port::close()
+void VEDirectPort::close()
 {
 #ifdef ESP32_ARCH
 	Serial2.end();
@@ -125,13 +181,13 @@ void Port::close()
 	tty_fd = 0;
 }
 
-void Port::set_port(const char *port_name)
+void VEDirectPort::set_port(const char *port_name)
 {
 	delete port;
 	port = strdup(port_name);
 }
 
-int Port::open()
+int VEDirectPort::open()
 {
 #ifdef ESP32_ARCH
 	Log::trace("Opening serial port ");
@@ -169,8 +225,9 @@ int Port::open()
 	return tty_fd > 0;
 }
 
-void Port::try_open(unsigned long t0, unsigned long timeout)
+void VEDirectPort::try_open(unsigned long t0, unsigned long timeout)
 {
+	reset();
 	while (tty_fd <= 0 && (_millis() - t0) < timeout)
 	{
 		if (open())
@@ -186,7 +243,7 @@ void Port::try_open(unsigned long t0, unsigned long timeout)
 	}
 }
 
-int Port::check_speed_reset()
+int VEDirectPort::check_speed_reset()
 {
 	if (last_speed != speed && tty_fd > 0)
 	{
@@ -198,7 +255,7 @@ int Port::check_speed_reset()
 	return 0;
 }
 
-int Port::check_inactivity_reset(unsigned long t0, unsigned long timeout)
+int VEDirectPort::check_inactivity_reset(unsigned long t0, unsigned long timeout)
 {
 	// check if it is not reading for a long time - it may be an indication that the device in unplugged (linux)
 	if ((t0 - last_read_time) > 2000 && tty_fd > 0)
@@ -210,7 +267,7 @@ int Port::check_inactivity_reset(unsigned long t0, unsigned long timeout)
 	return 0;
 }
 
-void Port::dump_stats(unsigned long t0, unsigned long period)
+void VEDirectPort::dump_stats(unsigned long t0, unsigned long period)
 {
 	if ((t0 - last_stats) >= period)
 	{
@@ -220,9 +277,9 @@ void Port::dump_stats(unsigned long t0, unsigned long period)
 	}
 }
 
-void Port::listen(uint ms)
+void VEDirectPort::listen(uint ms)
 {
-	unsigned char c;
+	static unsigned char c;
 	unsigned long t0 = _millis();
 
 	check_speed_reset();
@@ -246,13 +303,11 @@ void Port::listen(uint ms)
 			{
 				last_read_time = t0;
 				bytes_read_stats += bread;
-				if (process_char(c))
+				process_char(c);
+				// go back to the main loop after ms
+				if ((_millis() - t0) > ms)
 				{
-					// ensure that processing does not take more than the timeout, so not to block the main loop
-					if ((_millis() - t0) > ms)
-					{
-						stop = true;
-					}
+					stop = true;
 				}
 			}
 			else

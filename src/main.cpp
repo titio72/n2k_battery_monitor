@@ -12,6 +12,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "Utils.h"
 
 #ifdef ESP32_ARCH
 #include <Arduino.h>
@@ -23,7 +24,8 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 #include "N2K.h"
 #include "Ports.h"
 #include "Log.h"
-#include "Utils.h"
+#include "VeDirect.h"
+
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -31,71 +33,71 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 
 #define CAPACITY 280.0
 #define INSTANCE 0
+#define INSTANCE_E 1
 #define VEDIRECT_RX 15
 #define VEDIRECT_TX 19
 #define VEDIRECT_BAUD_RATE 19200
 
 N2K n2k;
 #ifdef ESP32_ARCH
-Port veDirect(VEDIRECT_RX, VEDIRECT_TX, VEDIRECT_BAUD_RATE);
+VEDirectPort veDirect(VEDIRECT_RX, VEDIRECT_TX, VEDIRECT_BAUD_RATE);
 #else
-Port veDirect("/dev/ttyUSB0", VEDIRECT_BAUD_RATE);
+VEDirectPort veDirect("/dev/ttyUSB0", VEDIRECT_BAUD_RATE);
 #endif
 
 char can_device[256];
 
-void msg_handler(const tN2kMsg &N2kMsg) {
+VEDirectObject bmv(BMV_FIELDS, BMV_N_FIELDS);
+
+void msg_handler(const tN2kMsg &N2kMsg)
+{
   // nothing to handle, this component just sends out stuff
 }
 
-double VE_soc = N2kDoubleNA;
-double VE_power = N2kDoubleNA;
-double VE_voltage = N2kDoubleNA;
-double VE_voltage1 = N2kDoubleNA;
-double VE_current = N2kDoubleNA;
-double VE_temperature = N2kDoubleNA;
-double VE_ttg_minutes = N2kDoubleNA;
-bool VE_alarm = false;
-bool VE_relay = false;
-
-unsigned long last_soc = 0;
-unsigned long last_power = 0;
-unsigned long last_voltage = 0;
-unsigned long last_voltage1 = 0;
-unsigned long last_current = 0;
-unsigned long last_temperature = 0;
-unsigned long last_alarm = 0;
-unsigned long last_relay = 0;
-unsigned long last_ttg = 0;
-
-bool send = false;
-
-int handle_vedirect(const char* line) {
-  int x = 0;
-  x += read_vedirect(VE_soc, 0.1, "SOC", line, last_soc);
-  x += read_vedirect(VE_power, 0.1, "P", line, last_power);
-  x += read_vedirect(VE_voltage, 0.001, "V", line, last_voltage);
-  x += read_vedirect(VE_voltage1, 0.001, "VS", line, last_voltage1);
-  x += read_vedirect(VE_current, 0.001, "I", line, last_current);
-  x += read_vedirect(VE_temperature, 0.001, "T", line, last_temperature);
-  x += read_vedirect(VE_ttg_minutes, 1, "TTG", line, last_ttg);
-  x += read_vedirect_onoff(VE_alarm, "Alarm", line, last_alarm);
-  x += read_vedirect_onoff(VE_relay, "Relay", line, last_relay);
-  send = send || (x!=0);
-  return x;
+int handle_vedirect(const char *line)
+{
+  if (strstr(line, "Checksum"))
+  {
+    if (bmv.IsValid())
+    {
+      static unsigned char sid = 0;
+      sid++;
+      double soc = N2kDoubleNA;
+      double voltage = N2kDoubleNA;
+      double voltage1 = N2kDoubleNA;
+      double current = N2kDoubleNA;
+      double temperature = N2kDoubleNA;
+      double ttg = N2kDoubleNA;
+      bmv.GetNumberValue(voltage, 0.001, VOLTAGE.veIndex);
+      bmv.GetNumberValue(voltage1, 0.001, VOLTAGE_1.veIndex);
+      bmv.GetNumberValue(current, 0.001, CURRENT.veIndex);
+      bmv.GetNumberValue(soc, 0.1, SOC.veIndex);
+      bmv.GetNumberValue(temperature, 1, TEMPERATURE.veIndex);
+      // printf("Read values: %.2f %.2f %.2f %.2f\n", soc, voltage, voltage1, current);
+      n2k.sendBattery(sid, voltage, current, temperature, INSTANCE);
+      n2k.sendBatteryStatus(sid, soc, CAPACITY, ttg, INSTANCE);
+      n2k.sendBattery(sid++, voltage1, 0, N2kDoubleNA, INSTANCE_E);
+    }
+    bmv.Reset();
+  }
+  else
+  {
+    bmv.LoadVEDirectKeyValue(line, millis());
+    return 0;
+  }
+  return -1;
 }
 
 void setup()
 {
-  #ifdef ESP32_ARCH
+#ifdef ESP32_ARCH
   // reduce power usage
   adc_power_off();        // Shut off ADC
   WiFi.mode(WIFI_OFF);    // Switch WiFi off
   btStop();               // Shut down bluetooth
   setCpuFrequencyMhz(80); // Slow down CPU
   strcpy(can_device, "dummy");
-  #endif
-
+#endif
   // init log
   Log::init();
   // setup N2k
@@ -106,28 +108,17 @@ void setup()
 
 void loop()
 {
-  static unsigned char sid = 0;
   veDirect.listen(50);
-  unsigned long now = _millis();
-  if (send) {
-    sid++;
-    //Log::trace("Send battery        %.2fV %.2fA %d\n", VE_voltage, VE_current, sid);
-    n2k.sendBattery(sid++, VE_voltage, VE_current, ((now - last_temperature)<500)?VE_temperature:-1000000000.0, INSTANCE);
-    //Log::trace("Send battery status %.2fV %.2fmin %d\n", VE_soc, VE_ttg_minutes, sid);
-    n2k.sendBatteryStatus(sid++, VE_soc, CAPACITY, (VE_ttg_minutes<=0)?N2kDoubleNA:VE_ttg_minutes, INSTANCE);
-    //Log::trace("----------------\n");
-    send = false;
-  }
   n2k.loop();
-  msleep(200); // add 200ms pause
+  msleep(50); // add 50ms pause
 }
-
 
 #ifndef ESP32_ARCH
 
 int main(int argc, const char **argv)
 {
-  if (argc==3) {
+  if (argc == 3)
+  {
     Log::trace("Set port [%s]\n", argv[1]);
     Log::trace("Set can  [%s]\n", argv[2]);
     strcpy(can_device, argv[2]);
@@ -137,7 +128,9 @@ int main(int argc, const char **argv)
     {
       loop();
     }
-  } else {
+  }
+  else
+  {
     Log::trace("Usage: vedirectN2K <ve.direct port> <can port>\nExample: vedirectN2K /dev/ttyUSB0 can0\n");
   }
 }

@@ -18,18 +18,21 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdlib.h>
 
-#define PORT_BUFFER_SIZE 1024
+#define PORT_BUFFER_SIZE 8192
 
-class Port {
+#define PHASE_IDLE 0
+#define PHASE_FRAME 1
+
+class VEDirectPort {
 
 public:
 #ifdef ESP32_ARCH
-	Port(unsigned int rx, unsigned int tx, unsigned int speed);
+	VEDirectPort(unsigned int rx, unsigned int tx, unsigned int speed);
 #else
-	Port(const char* port, unsigned int speed);
+	VEDirectPort(const char* port, unsigned int speed);
 #endif
 
-	virtual ~Port();
+	virtual ~VEDirectPort();
 
 	void listen(unsigned int ms);
 	void close();
@@ -50,7 +53,8 @@ private:
 	int check_speed_reset();
 	int check_inactivity_reset(unsigned long t0, unsigned long timeout);
 	void dump_stats(unsigned long t0, unsigned long period);
-
+	void reset();
+	
 	int tty_fd = 0;
 
 	char read_buffer[PORT_BUFFER_SIZE];
@@ -72,6 +76,10 @@ private:
 
 	unsigned long last_stats;
 	unsigned long bytes_read_stats;
+
+	unsigned int checksum;
+	unsigned char phase;
+	unsigned int last_start_line = 0;
 };
 
 #endif // PORTS_H_
