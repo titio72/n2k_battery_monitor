@@ -58,7 +58,7 @@ int handle_vedirect(const char *line)
 {
   if (strstr(line, "Checksum"))
   {
-    if (bmv.IsValid())
+    if (bmv.is_valid())
     {
       static unsigned char sid = 0;
       sid++;
@@ -68,21 +68,21 @@ int handle_vedirect(const char *line)
       double current = N2kDoubleNA;
       double temperature = N2kDoubleNA;
       double ttg = N2kDoubleNA;
-      bmv.GetNumberValue(voltage, 0.001, VOLTAGE.veIndex);
-      bmv.GetNumberValue(voltage1, 0.001, VOLTAGE_1.veIndex);
-      bmv.GetNumberValue(current, 0.001, CURRENT.veIndex);
-      bmv.GetNumberValue(soc, 0.1, SOC.veIndex);
-      bmv.GetNumberValue(temperature, 1, TEMPERATURE.veIndex);
+      bmv.get_number_value(voltage, 0.001, VOLTAGE.veIndex);
+      bmv.get_number_value(voltage1, 0.001, VOLTAGE_1.veIndex);
+      bmv.get_number_value(current, 0.001, CURRENT.veIndex);
+      bmv.get_number_value(soc, 0.1, SOC.veIndex);
+      bmv.get_number_value(temperature, 1, TEMPERATURE.veIndex);
       // printf("Read values: %.2f %.2f %.2f %.2f\n", soc, voltage, voltage1, current);
       n2k.sendBattery(sid, voltage, current, temperature, INSTANCE);
       n2k.sendBatteryStatus(sid, soc, CAPACITY, ttg, INSTANCE);
       n2k.sendBattery(sid++, voltage1, 0, N2kDoubleNA, INSTANCE_E);
     }
-    bmv.Reset();
+    bmv.reset();
   }
   else
   {
-    bmv.LoadVEDirectKeyValue(line, millis());
+    bmv.load_VEDirect_key_value(line, millis());
     return 0;
   }
   return -1;

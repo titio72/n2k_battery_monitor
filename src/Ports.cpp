@@ -78,7 +78,7 @@ void VEDirectPort::set_handler(int (*fun)(const char *))
 
 static int check_end_frame(char *buffer, int pos)
 {
-	int l = strlen("Checksum\tx");
+	int l = strlen(end_string) + 1;  //+1 to account for the checksum character
 	if (pos < l)
 		return 0;
 	else

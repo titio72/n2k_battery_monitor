@@ -15,7 +15,7 @@ VEDirectObject::VEDirectObject(const VEDirectValueDefinition *definition, int le
         Log::trace("Field %d %s %s\n", fields[i].veIndex, fields[i].veName, fields[i].veUnit);
     }
     Log::trace("End ve.direct object\n");
-    Reset();
+    reset();
 }
 
 VEDirectObject::~VEDirectObject()
@@ -24,7 +24,7 @@ VEDirectObject::~VEDirectObject()
     delete last_time;
 }
 
-void VEDirectObject::LoadVEDirectKeyValue(const char *line, unsigned long time)
+void VEDirectObject::load_VEDirect_key_value(const char *line, unsigned long time)
 {
     for (int i = 0; i < BMV_N_FIELDS; i++)
     {
@@ -56,7 +56,7 @@ void VEDirectObject::LoadVEDirectKeyValue(const char *line, unsigned long time)
     }
 }
 
-int VEDirectObject::GetNumberValue(int &value, unsigned int index)
+int VEDirectObject::get_number_value(int &value, unsigned int index)
 {
     if (index > n_fields)
         return 0;
@@ -72,7 +72,7 @@ int VEDirectObject::GetNumberValue(int &value, unsigned int index)
     }
 }
 
-int VEDirectObject::GetNumberValue(double &value, double precision, unsigned int index)
+int VEDirectObject::get_number_value(double &value, double precision, unsigned int index)
 {
     if (index > n_fields)
         return 0;
@@ -88,7 +88,7 @@ int VEDirectObject::GetNumberValue(double &value, double precision, unsigned int
     }
 }
 
-int VEDirectObject::GetBooleanValue(bool &value, unsigned int index)
+int VEDirectObject::get_boolean_value(bool &value, unsigned int index)
 {
     if (index > n_fields)
         return 0;
@@ -104,19 +104,19 @@ int VEDirectObject::GetBooleanValue(bool &value, unsigned int index)
     }
 }
 
-unsigned long VEDirectObject::GetLastTimestamp(unsigned int index)
+unsigned long VEDirectObject::get_last_timestamp(unsigned int index)
 {
     if (index > n_fields)
         return 0;
     return last_time[index];
 }
 
-int VEDirectObject::GetStringValue(char *value, unsigned int index)
+int VEDirectObject::get_string_value(char *value, unsigned int index)
 {
     return 0; // unsupported for now
 }
 
-void VEDirectObject::Reset()
+void VEDirectObject::reset()
 {
     for (int i = 0; i < n_fields; i++)
         last_time[i] = 0;
@@ -125,7 +125,7 @@ void VEDirectObject::Reset()
     valid = 0;
 }
 
-bool VEDirectObject::IsValid()
+bool VEDirectObject::is_valid()
 {
     return valid;
 }

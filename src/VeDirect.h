@@ -47,16 +47,16 @@ public:
     VEDirectObject(const VEDirectValueDefinition *definition, int len);
     ~VEDirectObject();
 
-    void LoadVEDirectKeyValue(const char *line, unsigned long time);
-    int GetNumberValue(int &value, unsigned int index);
-    int GetNumberValue(double &value, double precision, unsigned int index);
-    int GetBooleanValue(bool &value, unsigned int index);
-    int GetStringValue(char *value, unsigned int index);
-    unsigned long GetLastTimestamp(unsigned int index);
+    void load_VEDirect_key_value(const char *line, unsigned long time);
+    int get_number_value(int &value, unsigned int index);
+    int get_number_value(double &value, double precision, unsigned int index);
+    int get_boolean_value(bool &value, unsigned int index);
+    int get_string_value(char *value, unsigned int index);
+    unsigned long get_last_timestamp(unsigned int index);
 
-    void Reset();
+    void reset();
 
-    bool IsValid();
+    bool is_valid();
 
 private:
     int n_fields;
