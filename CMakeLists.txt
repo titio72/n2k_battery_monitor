@@ -19,6 +19,6 @@ add_compile_options(
   -g
 )
 
-INCLUDE_DIRECTORIES($ENV{HOME}/dev/NMEA2000/src $ENV{HOME}/dev/NMEA2000_socketCAN)
+INCLUDE_DIRECTORIES(include)
 
 add_subdirectory(src)
