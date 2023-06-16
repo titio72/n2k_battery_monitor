@@ -21,6 +21,8 @@ else
 	#git reset --hard
 	git pull
 fi
+# change the make file so to build the function handlers (don't know why they are in the regular makefile)
+sed -i "s/Seasmart\.cpp/N2kGroupFunction.cpp\\n  N2kGroupFunctionDefaultHandlers.cpp/g" ./src/CMakeLists.txt
 if [ ! -d "./build" ]; then
 	echo "Creating missing build directory..."
 	mkdir "./build"
@@ -36,7 +38,7 @@ cd ../..
 if [ ! -d "$DEPS_NMEA2000_SOCKETCAN" ]; then
 	echo "Downloading dependency $DEPS_NMEA2000_SOCKETCAN..."
 	git clone https://github.com/ttlappalainen/NMEA2000_socketCAN.git
-	cd "DEPS_NMEA2000_SOCKETCAN"
+	cd "$DEPS_NMEA2000_SOCKETCAN"
 else
 	echo "Updating dependency $DEPS_NMEA2000_SOCKETCAN..."
 	cd "$DEPS_NMEA2000_SOCKETCAN"
