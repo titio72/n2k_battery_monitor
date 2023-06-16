@@ -23,5 +23,6 @@ add_executable(vedirectN2K
 include_directories(../src)
 
 target_link_libraries(vedirectN2K
-	$ENV{HOME}/Documents/PlatformIO/Projects/NMEA2000/build/src/libnmea2000.a
+  "${PROJECT_SOURCE_DIR}/deps/NMEA2000_socketCAN/libnmea2000_socketcan.a"
+  "${PROJECT_SOURCE_DIR}/deps/NMEA2000/build/src/libnmea2000.a"
 )

@@ -1,0 +1,14 @@
+build/
+CMakeFiles/
+deps/
+.vscode/
+.pio/
+decodestacktrace.sh
+start_ve_direct.sh
+startvcan.sh
+bfg-1.14.0.jar
+EspStackTraceDecoder.class
+token
+CMakeCache.txt
+cmake_install.cmake
+Makefile
