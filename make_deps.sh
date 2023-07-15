@@ -22,7 +22,20 @@ else
 	git pull
 fi
 # change the make file so to build the function handlers (don't know why they are in the regular makefile)
-sed -i "s/Seasmart\.cpp/N2kGroupFunction.cpp\\n  N2kGroupFunctionDefaultHandlers.cpp/g" ./src/CMakeLists.txt
+cp ./src/CMakeLists.txt ./src/CMakeLists.txt.bak
+echo "add_library(nmea2000" > ./src/CMakeLists.txt 
+echo "  N2kMsg.cpp"         >> ./src/CMakeLists.txt
+echo "  N2kStream.cpp"      >> ./src/CMakeLists.txt
+echo "  N2kMessages.cpp"    >> ./src/CMakeLists.txt
+echo "  N2kTimer.cpp"       >> ./src/CMakeLists.txt
+echo "  N2kGroupFunction.cpp" >> ./src/CMakeLists.txt
+echo "  N2kGroupFunctionDefaultHandlers.cpp" >> ./src/CMakeLists.txt
+echo "  NMEA2000.cpp"       >> ./src/CMakeLists.txt
+echo ")"                    >> ./src/CMakeLists.txt
+echo "target_include_directories(nmea2000" >> ./src/CMakeLists.txt
+echo "  PUBLIC"             >> ./src/CMakeLists.txt
+echo "  ${CMAKE_CURRENT_SOURCE_DIR}" >> ./src/CMakeLists.txt
+echo ")"                    >> ./src/CMakeLists.txt
 if [ ! -d "./build" ]; then
 	echo "Creating missing build directory..."
 	mkdir "./build"

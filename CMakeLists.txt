@@ -19,6 +19,11 @@ add_compile_options(
   -g
 )
 
-INCLUDE_DIRECTORIES(deps/NMEA2000/src deps/NMEA2000_socketCAN)
+remove_definitions(ESP32_ARCH)
+
+INCLUDE_DIRECTORIES(
+	deps/NMEA2000/src
+	deps/NMEA2000_socketCAN
+)
 
 add_subdirectory(src)

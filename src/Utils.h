@@ -12,7 +12,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 */
-#undef ESP32_ARCH
 #ifndef UTILS_H
 #define UTILS_H
 
