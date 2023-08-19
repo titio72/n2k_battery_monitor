@@ -30,37 +30,110 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 #include "Ports.h"
 #include "Log.h"
 
+#define NOTHING_TO_READ_ERROR 11
+
+#define INIT_PORT(_rx, _tx, _speed, _name) \
+	fun = NULL;                            \
+	tty_fd = 0;                            \
+	speed = _speed;                        \
+	last_speed = _speed;                   \
+	rx = _rx;                              \
+	tx = _tx;                              \
+	last_stats = _millis();                \
+	bytes_read_stats = 0;                  \
+	port = strdup(_name);
+
 #ifdef ESP32_ARCH
 VEDirectPort::VEDirectPort(unsigned int _rx, unsigned int _tx, unsigned int _speed)
 {
-	fun = NULL;
+	INIT_PORT(_rx, _tx, _speed, "dummy");
+}
+
+void VEDirectPort::close()
+{
+	Serial2.end();
 	tty_fd = 0;
+}
 
-	speed = _speed;
-	last_speed = speed;
-	rx = _rx;
-	tx = _tx;
+int VEDirectPort::open()
+{
+	Log::trace("Opening serial port ");
+	Serial2.begin(speed, SERIAL_8N1, rx, tx);
+	tty_fd = 1;
+	Log::trace("Ok\n");
+	return tty_fd > 0;
+}
 
-	last_read_time = _millis();
-	last_stats = last_read_time;
-	bytes_read_stats = 0;
-
-	port = strdup("dummy");
+unsigned char _read_char(int tty_fd, int &bread, int &read_error)
+{
+	int _c = Serial2.read();
+	bread = (_c != -1) ? 1 : 0;
+	read_error = (_c != -1) ? NOTHING_TO_READ_ERROR : 0; // simulate
+	return (unsigned char)_c;
 }
 #else
 VEDirectPort::VEDirectPort(const char *port_name, unsigned int _speed)
 {
-	port = strdup(port_name);
-	fun = NULL;
+	INIT_PORT(0, 0, _speed, port_name);
+}
 
-	speed = _speed;
-	last_speed = speed;
+int fd_set_blocking(int fd, int blocking)
+{
+	// Save the current flags
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags == -1)
+		return 0;
 
+	if (blocking)
+		flags &= ~O_NONBLOCK;
+	else
+		flags |= O_NONBLOCK;
+	return fcntl(fd, F_SETFL, flags) != -1;
+}
+
+void VEDirectPort::close()
+{
+	::close(tty_fd);
 	tty_fd = 0;
+}
 
-	last_read_time = _millis();
-	last_stats = last_read_time;
-	bytes_read_stats = 0;
+int VEDirectPort::open()
+{
+	struct termios tio;
+
+	memset(&tio, 0, sizeof(tio));
+	tio.c_iflag = 0;
+	tio.c_oflag = 0;
+	tio.c_cflag = CS8 | CREAD | CLOCAL; // 8n1, see termios.h for more information
+	tio.c_lflag = 0;
+	tio.c_cc[VMIN] = 1;
+	tio.c_cc[VTIME] = 5;
+
+	Log::trace("Opening port {%s}\n", port);
+
+	// reset error
+	errno = 0;
+
+	tty_fd = ::open(port, O_RDONLY | O_NONBLOCK); // O_NONBLOCK might override VMIN and VTIME, so read() may return immediately.
+	if (tty_fd > 0)
+	{
+		fd_set_blocking(tty_fd, 0);
+		cfsetospeed(&tio, B19200);
+		cfsetispeed(&tio, B19200);
+		tcsetattr(tty_fd, TCSANOW, &tio);
+	}
+
+	Log::trace("Err opening port {%s} {%d} {%s}\n", port, errno, strerror(errno));
+
+	return tty_fd > 0;
+}
+
+unsigned char _read_char(int tty_fd, int &bread, int &read_error)
+{
+	unsigned char c = 0;
+	bread = read(tty_fd, &c, 1);
+	read_error = errno;
+	return c;
 }
 #endif
 
@@ -78,7 +151,7 @@ void VEDirectPort::set_handler(int (*fun)(const char *))
 
 static int check_end_frame(char *buffer, int pos)
 {
-	int l = strlen(end_string) + 1;  //+1 to account for the checksum character
+	int l = strlen(end_string) + 1; //+1 to account for the checksum character
 	if (pos < l)
 		return 0;
 	else
@@ -155,85 +228,19 @@ int VEDirectPort::process_char(unsigned char c)
 	return 0;
 }
 
-#ifndef ESP32_ARCH
-int fd_set_blocking(int fd, int blocking)
-{
-	// Save the current flags
-	int flags = fcntl(fd, F_GETFL, 0);
-	if (flags == -1)
-		return 0;
-
-	if (blocking)
-		flags &= ~O_NONBLOCK;
-	else
-		flags |= O_NONBLOCK;
-	return fcntl(fd, F_SETFL, flags) != -1;
-}
-#endif
-
-void VEDirectPort::close()
-{
-#ifdef ESP32_ARCH
-	Serial2.end();
-#else
-	::close(tty_fd);
-#endif
-	tty_fd = 0;
-}
-
 void VEDirectPort::set_port(const char *port_name)
 {
 	delete port;
 	port = strdup(port_name);
 }
 
-int VEDirectPort::open()
-{
-#ifdef ESP32_ARCH
-	Log::trace("Opening serial port ");
-	Serial2.begin(speed, SERIAL_8N1, rx, tx);
-	tty_fd = 1;
-	Log::trace("Ok\n");
-#else
-	struct termios tio;
-
-	memset(&tio, 0, sizeof(tio));
-	tio.c_iflag = 0;
-	tio.c_oflag = 0;
-	tio.c_cflag = CS8 | CREAD | CLOCAL; // 8n1, see termios.h for more information
-	tio.c_lflag = 0;
-	tio.c_cc[VMIN] = 1;
-	tio.c_cc[VTIME] = 5;
-
-	Log::trace("Opening port {%s}\n", port);
-
-	// reset error
-	errno = 0;
-
-	tty_fd = ::open(port, O_RDONLY | O_NONBLOCK); // O_NONBLOCK might override VMIN and VTIME, so read() may return immediately.
-	if (tty_fd > 0)
-	{
-		fd_set_blocking(tty_fd, 0);
-		cfsetospeed(&tio, B19200);
-		cfsetispeed(&tio, B19200);
-		tcsetattr(tty_fd, TCSANOW, &tio);
-	}
-
-	Log::trace("Err opening port {%s} {%d} {%s}\n", port, errno, strerror(errno));
-#endif
-
-	return tty_fd > 0;
-}
-
 void VEDirectPort::try_open(unsigned long t0, unsigned long timeout)
 {
-	reset();
 	while (tty_fd <= 0 && (_millis() - t0) < timeout)
 	{
 		if (open())
 		{
-			// reset inactivity timout
-			last_read_time = t0;
+			reset();
 		}
 		else
 		{
@@ -255,18 +262,6 @@ int VEDirectPort::check_speed_reset()
 	return 0;
 }
 
-int VEDirectPort::check_inactivity_reset(unsigned long t0, unsigned long timeout)
-{
-	// check if it is not reading for a long time - it may be an indication that the device in unplugged (linux)
-	if ((t0 - last_read_time) > 2000 && tty_fd > 0)
-	{
-		Log::trace("Port is inactive for longer than 2 seconds - try reset\n");
-		close();
-		return -1;
-	}
-	return 0;
-}
-
 void VEDirectPort::dump_stats(unsigned long t0, unsigned long period)
 {
 	if ((t0 - last_stats) >= period)
@@ -279,48 +274,36 @@ void VEDirectPort::dump_stats(unsigned long t0, unsigned long period)
 
 void VEDirectPort::listen(uint ms)
 {
-	static unsigned char c;
 	unsigned long t0 = _millis();
 
 	check_speed_reset();
-	check_inactivity_reset(t0, 2000);
 	try_open(t0, ms);
 	dump_stats(t0, 10000);
 
 	if (tty_fd > 0)
 	{
-		while (!stop)
+		while ((_millis() - t0) <= ms) // go back to the main loop after ms
 		{
-#ifdef ESP32_ARCH
-			int _c = Serial2.read();
-			int bread = (_c != -1) ? 1 : 0;
-			int nothing_to_read = (_c != -1); // simulate
-			c = (unsigned char)_c;
-#else
-			ssize_t bread = read(tty_fd, &c, 1);
-			int nothing_to_read = (errno==11);
-#endif
+			int bread = 0;
+			int read_error = 0;
+			unsigned char c = _read_char(tty_fd, bread, read_error);
+
 			if (bread > 0)
 			{
-				last_read_time = t0;
 				bytes_read_stats += bread;
 				process_char(c);
-				// go back to the main loop after ms
-				if ((_millis() - t0) > ms)
-				{
-					stop = true;
-				}
 			}
 			else
 			{
-				if (nothing_to_read)
+				if (read_error == NOTHING_TO_READ_ERROR)
 				{
 					// nothing to read
 					return;
 				}
 				else
 				{
-					Log::trace("Err reading port {%s} {%d} {%s}\n", port, errno, strerror(errno));
+					// some other error occurred
+					Log::trace("Err reading port {%s} {%d} {%s}\n", port, read_error, strerror(read_error));
 					close();
 					return;
 				}

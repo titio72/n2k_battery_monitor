@@ -51,10 +51,9 @@ private:
 	void try_open(unsigned long t0, unsigned long timeout);
 	int process_char(unsigned char c);
 	int check_speed_reset();
-	int check_inactivity_reset(unsigned long t0, unsigned long timeout);
 	void dump_stats(unsigned long t0, unsigned long period);
 	void reset();
-	
+
 	int tty_fd = 0;
 
 	char read_buffer[PORT_BUFFER_SIZE];
@@ -66,13 +65,9 @@ private:
 	unsigned int rx = 15;
 	unsigned int tx = 19;
 
-	bool stop = false;
-
 	int (*fun)(const char*);
 
 	bool trace = false;
-
-	unsigned long last_read_time;
 
 	unsigned long last_stats;
 	unsigned long bytes_read_stats;

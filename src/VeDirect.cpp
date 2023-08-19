@@ -1,7 +1,100 @@
+/*
+(C) 2022, Andrea Boni
+This file is part of n2k_battery_monitor.
+n2k_battery_monitor is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+NMEARouter is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "VeDirect.h"
 #include "Utils.h"
 #include "Log.h"
 #include <stdio.h>
+#include <string.h>
+
+/*
+VE.Direct format:
+
+PID     0xA381
+V       12488
+VS      12909
+I       0
+P       0
+CE      -220375
+SOC     196
+TTG     -1
+Alarm   ON
+Relay   OFF
+AR      4
+BMV     712 Smart
+FW      0408
+MON     0
+ */
+
+int read_vedirect(double& v, double precision, const char* tag, const char* line, unsigned long& last_time) {
+  char str[80];
+  strcpy(str, line);
+  char *token;
+  token = strtok(str, "\t");
+  if (token && strcmp(tag, token)==0) {
+    token = strtok(NULL, "\t");
+    if (token) {
+      if (strcmp("---", token)==0) {
+        return 0;
+      } else {
+        v = atof(token) * precision;
+        last_time = _millis();
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+int read_vedirect_int(int& v, const char* tag, const char* line, unsigned long& last_time) {
+  char str[80];
+  strcpy(str, line);
+  char *token;
+  token = strtok(str, "\t");
+  if (token && strcmp(tag, token)==0) {
+    //printf("'%s' '%s'\n", line, tag);
+    token = strtok(NULL, "\t");
+    if (token) {
+      if (strcmp("---", token)==0) {
+        return 0;
+      } else {
+        v = atoi(token);
+        //printf("OK '%s' (%d)\n", tag, v);
+        last_time = _millis();
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+int read_vedirect_onoff(bool& v, const char* tag, const char* line, unsigned long& last_time) {
+  char str[80];
+  strcpy(str, line);
+  char *token;
+  token = strtok(str, "\t");
+  if (token && strcmp(tag, token)==0) {
+    token = strtok(NULL, "\t");
+    if (token) {
+      v = strcmp("ON", token);
+      last_time = _millis();
+      return -1;
+    }
+  }
+  return 0;
+}
 
 VEDirectObject::VEDirectObject(const VEDirectValueDefinition *definition, int len) : valid(0), n_fields(len), fields(definition)
 {

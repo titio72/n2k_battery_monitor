@@ -18,8 +18,4 @@ along with n2k_battery_monitor.  If not, see <http://www.gnu.org/licenses/>.
 unsigned long _millis();
 int msleep(long msec);
 
-int read_vedirect_int(int& v, const char* tag, const char* line, unsigned long& last_time);
-int read_vedirect(double& v, double precision, const char* tag, const char* line, unsigned long& last_time);
-int read_vedirect_onoff(bool& v, const char* tag, const char* line, unsigned long& last_time);
-
 #endif
