@@ -38,76 +38,73 @@ FW      0408
 MON     0
  */
 
-int read_vedirect(double& v, double precision, const char* tag, const char* line, unsigned long& last_time) {
-  char str[80];
-  strcpy(str, line);
-  char *token;
-  token = strtok(str, "\t");
-  if (token && strcmp(tag, token)==0) {
-    token = strtok(NULL, "\t");
-    if (token) {
-      if (strcmp("---", token)==0) {
-        return 0;
-      } else {
-        v = atof(token) * precision;
-        last_time = _millis();
-        return -1;
-      }
+static const char *EMPTY_STRING = "";
+
+int _read_vedirect(char *output, const char *tag, const char *line)
+{
+    char str[80];
+    strcpy(str, line);
+    char *token;
+    token = strtok(str, "\t");
+    if (token && strcmp(tag, token) == 0)
+    {
+        token = strtok(NULL, "\t");
+        if (token)
+        {
+            strcpy(output, token);
+            return -1;
+        }
     }
-  }
-  return 0;
+    return 0;
 }
 
-int read_vedirect_int(int& v, const char* tag, const char* line, unsigned long& last_time) {
-  char str[80];
-  strcpy(str, line);
-  char *token;
-  token = strtok(str, "\t");
-  if (token && strcmp(tag, token)==0) {
-    //printf("'%s' '%s'\n", line, tag);
-    token = strtok(NULL, "\t");
-    if (token) {
-      if (strcmp("---", token)==0) {
-        return 0;
-      } else {
-        v = atoi(token);
-        //printf("OK '%s' (%d)\n", tag, v);
-        last_time = _millis();
-        return -1;
-      }
+int read_vedirect_int(int &v, const char *tag, const char *line)
+{
+    char token[80];
+    if (_read_vedirect(token, tag, line))
+    {
+        if (strcmp("---", token) == 0)
+        {
+            return 0; // undefined value in ve.direct dialect
+        }
+        else
+        {
+            v = strtol(token, NULL, 0);
+            return -1;
+        }
     }
-  }
-  return 0;
+    return 0;
 }
 
-int read_vedirect_onoff(bool& v, const char* tag, const char* line, unsigned long& last_time) {
-  char str[80];
-  strcpy(str, line);
-  char *token;
-  token = strtok(str, "\t");
-  if (token && strcmp(tag, token)==0) {
-    token = strtok(NULL, "\t");
-    if (token) {
-      v = strcmp("ON", token);
-      last_time = _millis();
-      return -1;
+int read_vedirect(double &v, double precision, const char *tag, const char *line)
+{
+    int iv = 0;
+    if (read_vedirect_int(iv, tag, line))
+    {
+        v = iv * precision;
+        return -1;
     }
-  }
-  return 0;
+    return 0;
+}
+
+int read_vedirect_onoff(bool &v, const char *tag, const char *line)
+{
+    char token[80];
+    if (_read_vedirect(token, tag, line))
+    {
+        v = strcmp("ON", token);
+        return -1;
+    }
+    return 0;
 }
 
 VEDirectObject::VEDirectObject(const VEDirectValueDefinition *definition, int len) : valid(0), n_fields(len), fields(definition)
 {
     i_values = new int[n_fields];
     last_time = new unsigned long[n_fields];
-    // printf("New ve.direct object");
-    Log::trace("New ve.direct object\n");
-    for (int i = 0; i < len; i++)
-    {
-        // printf("Field %d %s %s\n", fields[i].veIndex, fields[i].veName, fields[i].veUnit);
-        Log::trace("Field %d %s %s\n", fields[i].veIndex, fields[i].veName, fields[i].veUnit);
-    }
-    Log::trace("End ve.direct object\n");
+    s_values = new char *[n_fields];
+    for (int i = 0; i < n_fields; i++)
+        s_values[i] = NULL;
     reset();
 }
 
@@ -115,6 +112,52 @@ VEDirectObject::~VEDirectObject()
 {
     delete i_values;
     delete last_time;
+    for (int i = 0; i < n_fields; i++)
+    {
+        if (s_values[i])
+            delete s_values[i];
+    }
+    delete s_values;
+}
+
+void VEDirectObject::reset()
+{
+    for (int i = 0; i < n_fields; i++)
+    {
+        last_time[i] = 0;
+        i_values[i] = 0;
+        if (s_values[i])
+            delete s_values[i];
+        s_values[i] = NULL;
+    }
+    valid = 0;
+}
+
+void VEDirectObject::print()
+{
+    Log::trace("New ve.direct object\n");
+    for (int i = 0; i < n_fields; i++)
+    {
+        if (last_time[i])
+            switch (fields[i].veType)
+            {
+            case VE_BOOLEAN:
+                Log::trace("Field %d %s {%s}\n", i, fields[i].veName, i_values[i] ? "ON" : "OFF");
+                break;
+            case VE_NUMBER:
+                if (fields[i].veUnit)
+                    Log::trace("Field %d %s {%d %s}\n", i, fields[i].veName, i_values[i], fields[i].veUnit);
+                else
+                    Log::trace("Field %d %s {%d}\n", i, fields[i].veName, i_values[i]);
+                break;
+            case VE_STRING:
+                Log::trace("Field %d %s {%s}\n", i, fields[i].veName, s_values[i]);
+                break;
+            default:
+                break;
+            }
+    }
+    Log::trace("End ve.direct object\n");
 }
 
 void VEDirectObject::load_VEDirect_key_value(const char *line, unsigned long time)
@@ -126,23 +169,36 @@ void VEDirectObject::load_VEDirect_key_value(const char *line, unsigned long tim
         {
         case VEFieldType::VE_NUMBER:
         {
-            if (read_vedirect_int(i_values[i], def.veName, line, last_time[i]))
+            if (read_vedirect_int(i_values[i], def.veName, line))
             {
+                last_time[i] = time;
                 valid++;
-                // printf("Read %s %d (%d)\n", def.veName, i_values[i], valid);
             }
         }
         break;
         case VEFieldType::VE_BOOLEAN:
         {
             bool res;
-            if (read_vedirect_onoff(res, def.veName, line, last_time[i]))
+            if (read_vedirect_onoff(res, def.veName, line))
             {
                 i_values[i] = res ? 1 : 0;
+                last_time[i] = time;
                 valid++;
             }
         }
         break;
+        case VEFieldType::VE_STRING:
+        {
+            static char str[80];
+            if (_read_vedirect(str, def.veName, line))
+            {
+                if (s_values[def.veIndex] == NULL)
+                    delete s_values[def.veIndex];
+                s_values[def.veIndex] = strdup(str);
+                last_time[i] = time;
+                valid++;
+            }
+        }
         default:
             break;
         }
@@ -206,16 +262,12 @@ unsigned long VEDirectObject::get_last_timestamp(unsigned int index)
 
 int VEDirectObject::get_string_value(char *value, unsigned int index)
 {
-    return 0; // unsupported for now
-}
-
-void VEDirectObject::reset()
-{
-    for (int i = 0; i < n_fields; i++)
-        last_time[i] = 0;
-    for (int i = 0; i < n_fields; i++)
-        i_values[i] = 0;
-    valid = 0;
+    if (s_values[index])
+    {
+        strcpy(value, s_values[index]);
+        return -1;
+    }
+    return 0;
 }
 
 bool VEDirectObject::is_valid()

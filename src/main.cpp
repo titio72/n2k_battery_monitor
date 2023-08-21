@@ -68,12 +68,13 @@ int handle_vedirect(const char *line)
       double current = N2kDoubleNA;
       double temperature = N2kDoubleNA;
       double ttg = N2kDoubleNA;
-      bmv.get_number_value(voltage, 0.001, VOLTAGE.veIndex);
-      bmv.get_number_value(voltage1, 0.001, VOLTAGE_1.veIndex);
-      bmv.get_number_value(current, 0.001, CURRENT.veIndex);
-      bmv.get_number_value(soc, 0.1, SOC.veIndex);
-      bmv.get_number_value(temperature, 1, TEMPERATURE.veIndex);
-      Log::trace("Read values: %.2f %.2f %.2f %.2f\n", soc, voltage, voltage1, current);
+      bmv.get_number_value(voltage, 0.001, BMV_VOLTAGE); // convert in V from mV
+      bmv.get_number_value(voltage1, 0.001, BMV_VOLTAGE_1); // convert in V from mV
+      bmv.get_number_value(current, 0.001, BMV_CURRENT); // convert in A from mA
+      bmv.get_number_value(soc, 0.1, BMV_SOC); // convert in percentage from 1000ths
+      bmv.get_number_value(temperature, 1, BMV_TEMPERATURE); // celsius
+      //bmv.print();
+      Log::trace("Read values: SOC {%.2f%} V0 {%.2f V} V1 {%.2f V} Current {%.2f A}\n", soc, voltage, voltage1, current);
       n2k.sendBattery(sid, voltage, current, temperature, INSTANCE);
       n2k.sendBatteryStatus(sid, soc, CAPACITY, ttg, INSTANCE);
       n2k.sendBattery(sid++, voltage1, 0, N2kDoubleNA, INSTANCE_E);

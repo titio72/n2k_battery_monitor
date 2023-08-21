@@ -37,24 +37,36 @@ public:
     const char *veUnit = NULL;
 };
 
-static const unsigned int BMV_N_FIELDS = 13;
-static const VEDirectValueDefinition PID(VE_NUMBER, "PID", 0);
-static const VEDirectValueDefinition VOLTAGE(VE_NUMBER, "V", 1, "mV");
-static const VEDirectValueDefinition VOLTAGE_1(VE_NUMBER, "VS", 2, "mV");
-static const VEDirectValueDefinition CURRENT(VE_NUMBER, "I", 3, "mA");
-static const VEDirectValueDefinition CONSUMPTION(VE_NUMBER, "CE", 4, "mAh");
-static const VEDirectValueDefinition SOC(VE_NUMBER, "SOC", 5, "1/1000");
-static const VEDirectValueDefinition TIME_TO_GO(VE_NUMBER, "TTG", 6, "Minutes");
-static const VEDirectValueDefinition ALARM(VE_BOOLEAN, "Alarm", 7);
-static const VEDirectValueDefinition RELAY(VE_BOOLEAN, "Relay", 8);
-static const VEDirectValueDefinition ALARM_REASON(VE_NUMBER, "AR", 9, "Enum");
-static const VEDirectValueDefinition FIRMWARE(VE_STRING, "FW", 10);
-static const VEDirectValueDefinition MONITOR_MODE(VE_NUMBER, "MON", 11, "Enum");
-static const VEDirectValueDefinition TEMPERATURE(VE_NUMBER, "T", 12, "C");
+static const unsigned int BMV_N_FIELDS = 14;
+static const VEDirectValueDefinition BMV_PID(VE_NUMBER, "PID", 0);
+static const VEDirectValueDefinition BMV_VOLTAGE(VE_NUMBER, "V", 1, "mV");
+static const VEDirectValueDefinition BMV_VOLTAGE_1(VE_NUMBER, "VS", 2, "mV");
+static const VEDirectValueDefinition BMV_CURRENT(VE_NUMBER, "I", 3, "mA");
+static const VEDirectValueDefinition BMV_CONSUMPTION(VE_NUMBER, "CE", 4, "mAh");
+static const VEDirectValueDefinition BMV_SOC(VE_NUMBER, "SOC", 5, "1/1000");
+static const VEDirectValueDefinition BMV_TIME_TO_GO(VE_NUMBER, "TTG", 6, "Minutes");
+static const VEDirectValueDefinition BMV_ALARM(VE_BOOLEAN, "Alarm", 7);
+static const VEDirectValueDefinition BMV_RELAY(VE_BOOLEAN, "Relay", 8);
+static const VEDirectValueDefinition BMV_ALARM_REASON(VE_NUMBER, "AR", 9, "Enum");
+static const VEDirectValueDefinition BMV_FIRMWARE(VE_STRING, "FW", 10);
+static const VEDirectValueDefinition BMV_MONITOR_MODE(VE_NUMBER, "MON", 11, "Enum");
+static const VEDirectValueDefinition BMV_TEMPERATURE(VE_NUMBER, "T", 12, "C");
+static const VEDirectValueDefinition BMV_BMV(VE_STRING, "BMV", 13);
 static const VEDirectValueDefinition BMV_FIELDS[BMV_N_FIELDS] = {
-    PID, VOLTAGE, VOLTAGE_1, CURRENT, CONSUMPTION, SOC, TIME_TO_GO, ALARM, RELAY, ALARM_REASON, FIRMWARE, MONITOR_MODE, TEMPERATURE};
-
-typedef VEDirectValueDefinition *prtVEDirectValueDefinition;
+    BMV_PID,
+    BMV_VOLTAGE,
+    BMV_VOLTAGE_1,
+    BMV_CURRENT,
+    BMV_CONSUMPTION,
+    BMV_SOC,
+    BMV_TIME_TO_GO,
+    BMV_ALARM,
+    BMV_RELAY,
+    BMV_ALARM_REASON,
+    BMV_FIRMWARE,
+    BMV_MONITOR_MODE,
+    BMV_TEMPERATURE,
+    BMV_BMV};
 
 class VEDirectObject
 {
@@ -63,6 +75,13 @@ public:
     ~VEDirectObject();
 
     void load_VEDirect_key_value(const char *line, unsigned long time);
+
+    int get_number_value(int &value, const VEDirectValueDefinition& def) { return get_number_value(value, def.veIndex); }
+    int get_number_value(double &value, double precision, const VEDirectValueDefinition& def) { return get_number_value(value, precision, def.veIndex); }
+    int get_boolean_value(bool &value, const VEDirectValueDefinition& def) { return get_boolean_value(value, def.veIndex); }
+    int get_string_value(char *value, const VEDirectValueDefinition& def) { return get_string_value(value, def.veIndex); }
+    unsigned long get_last_timestamp(const VEDirectValueDefinition& def) { return get_last_timestamp(def.veIndex); }
+
     int get_number_value(int &value, unsigned int index);
     int get_number_value(double &value, double precision, unsigned int index);
     int get_boolean_value(bool &value, unsigned int index);
@@ -73,9 +92,12 @@ public:
 
     bool is_valid();
 
+    void print();
+
 private:
     int n_fields;
     int *i_values;
+    char** s_values;
     unsigned long *last_time;
     int valid;
     const VEDirectValueDefinition *fields;
